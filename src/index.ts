@@ -12,11 +12,20 @@ import * as fs from "node:fs";
 
 const isValidGenerateImageArgs = (
   args: any
-): args is { prompt: string; numberOfImages?: number } =>
+): args is { 
+  prompt: string; 
+  numberOfImages?: number;
+  aspectRatio?: string;
+  sampleImageSize?: string;
+  personGeneration?: string;
+} =>
   typeof args === "object" &&
   args !== null &&
   typeof args.prompt === "string" &&
-  (args.numberOfImages === undefined || typeof args.numberOfImages === "number");
+  (args.numberOfImages === undefined || typeof args.numberOfImages === "number") &&
+  (args.aspectRatio === undefined || typeof args.aspectRatio === "string") &&
+  (args.sampleImageSize === undefined || typeof args.sampleImageSize === "string") &&
+  (args.personGeneration === undefined || typeof args.personGeneration === "string");
 
 class GeminiImagenServer {
   private server: Server;
@@ -24,10 +33,10 @@ class GeminiImagenServer {
   private GEMINI_API_KEY: string;
 
   constructor(config: Record<string, any> = {}) {
-    this.GEMINI_API_KEY = config.GEMINI_API_KEY;
+    this.GEMINI_API_KEY = config.GEMINI_API_KEY || process.env.GEMINI_API_KEY;
 
     if (!this.GEMINI_API_KEY) {
-      throw new Error("GEMINI_API_KEY is required in config.");
+      throw new Error("GEMINI_API_KEY is required in config or environment variables.");
     }
 
     this.server = new Server(
@@ -39,8 +48,7 @@ class GeminiImagenServer {
         capabilities: {
           tools: {},
         },
-      },
-      config // Pass the config here
+      }
     );
 
     this.genAI = new GoogleGenAI({ apiKey: this.GEMINI_API_KEY });
@@ -73,6 +81,24 @@ class GeminiImagenServer {
                 minimum: 1,
                 maximum: 4,
               },
+              aspectRatio: {
+                type: "string",
+                description: "Changes the aspect ratio of the generated image",
+                enum: ["1:1", "3:4", "4:3", "9:16", "16:9"],
+                default: "9:16"
+              },
+              sampleImageSize: {
+                type: "string",
+                description: "The size of the generated image (Standard and Ultra models only)",
+                enum: ["1K", "2K"],
+                default: "2K"
+              },
+              personGeneration: {
+                type: "string",
+                description: "Allow the model to generate images of people",
+                enum: ["dont_allow", "allow_adult", "allow_all"],
+                default: "allow_all"
+              },
             },
             required: ["prompt"],
           },
@@ -97,14 +123,38 @@ class GeminiImagenServer {
 
       const prompt = request.params.arguments.prompt;
       const numberOfImages = request.params.arguments.numberOfImages || 1;
+      const aspectRatio = request.params.arguments.aspectRatio || "9:16";
+      const sampleImageSize = request.params.arguments.sampleImageSize || "2K";
+      const personGeneration = request.params.arguments.personGeneration || "allow_adult";
+
+      console.error(`Debug: aspectRatio=${aspectRatio}, sampleImageSize=${sampleImageSize}, personGeneration=${personGeneration}`);
 
       try {
+        const config: any = {
+          numberOfImages: numberOfImages,
+        };
+
+        // Add aspectRatio if provided
+        if (aspectRatio) {
+          config.aspectRatio = aspectRatio;
+        }
+
+        // Add personGeneration if provided
+        if (personGeneration) {
+          config.personGeneration = personGeneration;
+        }
+
+        // Add sampleImageSize if provided
+        if (sampleImageSize) {
+          config.sampleImageSize = sampleImageSize;
+        }
+
+        console.error(`Debug: Final config:`, JSON.stringify(config, null, 2));
+
         const response = await this.genAI.models.generateImages({
           model: 'imagen-4.0-generate-001',
           prompt: prompt,
-          config: {
-            numberOfImages: numberOfImages,
-          },
+          config: config,
         });
 
         if (!response.generatedImages || response.generatedImages.length === 0) {
@@ -145,10 +195,7 @@ class GeminiImagenServer {
 
   async run() {
     const transport = new StdioServerTransport();
-    await this.server.connect(transport, (config) => {
-      const serverInstance = new GeminiImagenServer(config);
-      serverInstance.run().catch(console.error);
-    });
+    await this.server.connect(transport);
     console.error("Gemini Imagen MCP server running on stdio");
   }
 }
