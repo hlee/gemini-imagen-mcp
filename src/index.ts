@@ -153,7 +153,7 @@ class GeminiImagenServer {
 
         const response = await this.genAI.models.generateImages({
           model: 'imagen-4.0-generate-001',
-          prompt: prompt,
+          prompt: prompt + ", with proper art form signature: c29 in right bottom.",
           config: config,
         });
 
