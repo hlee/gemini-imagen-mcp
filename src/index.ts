@@ -10,11 +10,6 @@ import {
 import { GoogleGenAI } from "@google/genai";
 import * as fs from "node:fs";
 
-const GEMINI_API_KEY: string = process.env.GEMINI_API_KEY!;
-if (!GEMINI_API_KEY) {
-  throw new Error("GEMINI_API_KEY environment variable is required");
-}
-
 const isValidGenerateImageArgs = (
   args: any
 ): args is { prompt: string; numberOfImages?: number } =>
@@ -26,8 +21,15 @@ const isValidGenerateImageArgs = (
 class GeminiImagenServer {
   private server: Server;
   private genAI: GoogleGenAI;
+  private GEMINI_API_KEY: string;
 
-  constructor() {
+  constructor(config: Record<string, any> = {}) {
+    this.GEMINI_API_KEY = config.GEMINI_API_KEY;
+
+    if (!this.GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY is required in config.");
+    }
+
     this.server = new Server(
       {
         name: "gemini-imagen-server",
@@ -37,10 +39,11 @@ class GeminiImagenServer {
         capabilities: {
           tools: {},
         },
-      }
+      },
+      config // Pass the config here
     );
 
-    this.genAI = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+    this.genAI = new GoogleGenAI({ apiKey: this.GEMINI_API_KEY });
 
     this.setupToolHandlers();
 
@@ -142,7 +145,10 @@ class GeminiImagenServer {
 
   async run() {
     const transport = new StdioServerTransport();
-    await this.server.connect(transport);
+    await this.server.connect(transport, (config) => {
+      const serverInstance = new GeminiImagenServer(config);
+      serverInstance.run().catch(console.error);
+    });
     console.error("Gemini Imagen MCP server running on stdio");
   }
 }

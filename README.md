@@ -53,10 +53,21 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 {
   "mcpServers": {
     "gemini-imagen-server": {
-      "command": "/path/to/gemini-imagen-server/build/index.js"
+      "command": "/path/to/gemini-imagen-server/build/index.js",
+      "config": {
+        "GEMINI_API_KEY": "YOUR_GEMINI_API_KEY"
+      }
     }
   }
 }
+```
+
+### Configuration
+
+The `GEMINI_API_KEY` can be provided directly in the `claude_desktop_config.json` as shown above, or by setting it in a `.env` file in the root directory of the server. An example `.env` file would look like this:
+
+```
+GEMINI_API_KEY=YOUR_GEMINI_API_KEY
 ```
 
 ### Debugging
